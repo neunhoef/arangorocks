@@ -6,6 +6,11 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+set(BuildVelocyPackExamples OFF CACHE BOOL "Flag if velocypack examples are built.")
+set(BuildTools OFF CACHE BOOL "Flag if velocypack tools are built.")
+set(BuildTests OFF CACHE BOOL "Flag if velocypack tests are built.")
+set(BuildAsmTest OFF CACHE BOOL "Flag if velocypack asm tests are built.")
+
 set(WITH_TOOLS ON CACHE BOOL "enable tools")
 set(WITH_BENCHMARK OFF CACHE BOOL "disable benchmark tools")
 set(WITH_TESTS OFF CACHE BOOL "disable tests")
