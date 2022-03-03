@@ -1,0 +1,6 @@
+#!/usr/bin/fish
+#cmake .. -DCMAKE_CXX_COMPILER=/usr/lib/ccache/clang++-12 -DCMAKE_CXX_FLAGS=-D_GLIBCXX_DEBUG -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld $argv
+cmake .. -DCMAKE_CXX_COMPILER=/usr/lib/ccache/g++-10 -DCMAKE_CXX_FLAGS=-D_GLIBCXX_DEBUG -DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld $argv
+#cmake .. -DCMAKE_CXX_FLAGS="-D_GLIBCXX_DEBUG -g" -DCMAKE_EXE_LINKER_FLAGS="-fuse-ld=lld -g" -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld $argv
+#cmake .. $argv
+

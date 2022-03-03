@@ -24,6 +24,7 @@ find_package(Threads REQUIRED)
 
 add_subdirectory(rocksdb)
 add_subdirectory(velocypack)
+add_subdirectory(docopt.cpp)
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb -L/home/neunhoef/cpp/rocksdb")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3")
@@ -35,11 +36,13 @@ target_include_directories(arangorocks
     PUBLIC 
     rocksdb/include
     velocypack/include
+    docopt.cpp
 )
 
 target_link_libraries(arangorocks
     velocypack
     rocksdb
     dl
+    docopt
 )
 

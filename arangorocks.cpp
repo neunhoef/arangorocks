@@ -1,9 +1,12 @@
-#include <endian.h>
+#include <docopt.h>
+#include <stdlib.h>
 #include <velocypack/Iterator.h>
 #include <velocypack/Slice.h>
 
 #include <array>
 #include <cassert>
+#include <fstream>
+#include <iostream>
 #include <locale>
 #include <set>
 #include <string>
@@ -13,6 +16,8 @@
 #include "rocksdb/slice_transform.h"
 #include "rocksdb/table.h"
 #include "rocksdb/utilities/transaction_db.h"
+
+constexpr char const* Version = "0.0.1";
 
 enum class Family : std::size_t {
   Definitions = 0,
@@ -502,9 +507,11 @@ class RocksDBVPackComparator final : public rocksdb::Comparator {
 
 RocksDBVPackComparator vpackCmp;
 
-int main(int argc, char** argv) {
+std::vector<rocksdb::ColumnFamilyHandle*> cfHandles;
+
+rocksdb::TransactionDB* openDatabase(std::string const& path) {
   constexpr size_t objectIDLength = sizeof(uint64_t);
-  std::vector<rocksdb::ColumnFamilyHandle*> cfHandles;
+  cfHandles.clear();
   rocksdb::Options options;
   rocksdb::BlockBasedTableOptions tableOptions;
   rocksdb::TransactionDBOptions transactionOptions;
@@ -567,18 +574,140 @@ int main(int argc, char** argv) {
   options.create_if_missing = true;
 
   rocksdb::Status status = rocksdb::TransactionDB::Open(
-      options, transactionOptions, "/tmp/testdb", cfFamilies, &cfHandles, &db);
-  assert(status.ok());
+      options, transactionOptions, path, cfFamilies, &cfHandles, &db);
+  if (!status.ok()) {
+    std::cerr << "Could not open database, error: " << status.ToString()
+              << std::endl;
+    return nullptr;
+  }
+  return db;
+}
 
-  // Insert value
-  status = db->Put(rocksdb::WriteOptions(), "Test key", "Test value");
-  assert(status.ok());
-  // Read back value
-  std::string value;
-  status = db->Get(rocksdb::ReadOptions(), "Test key", &value);
-  assert(status.ok());
-  assert(!status.IsNotFound());
-  // Read key which does not exist
-  status = db->Get(rocksdb::ReadOptions(), "This key does not exist", &value);
-  assert(status.IsNotFound());
+void closeDatabase(rocksdb::TransactionDB* db) {
+  for (size_t i = 0; i < cfHandles.size(); ++i) {
+    db->DestroyColumnFamilyHandle(cfHandles[i]);
+  }
+  db->Close();
+  delete db;
+}
+
+char hexChar(uint8_t x) {
+  if (x <= 9) {
+    return x + '0';
+  } else {
+    return x - 10 + 'A';
+  }
+}
+
+void hexDump(rocksdb::Slice const& sl, std::string& a, std::string& b) {
+  char const* p = sl.data();
+  size_t len = sl.size() * 2 + 1;
+  char* buffer = new char[len];
+  char* buffer2 = new char[len];
+  char* q = buffer;
+  char* q2 = buffer2;
+  for (size_t i = 0; i < sl.size(); ++i) {
+    uint8_t c = (uint8_t)*p++;
+    *q++ = hexChar(c >> 4);
+    *q++ = hexChar(c & 0xf);
+    *q2++ = ' ';
+    if (c <= 32 || c >= 127) {
+      *q2++ = '.';
+    } else {
+      *q2++ = c;
+    }
+  }
+  a.append(buffer, len - 1);
+  b.append(buffer2, len - 1);
+  delete[] buffer;
+  delete[] buffer2;
+}
+
+void dump_all(rocksdb::TransactionDB* db, std::string const& outfile) {
+  rocksdb::WriteOptions opts;
+  rocksdb::TransactionOptions topts;
+  rocksdb::Transaction* trx = db->BeginTransaction(opts, topts);
+  rocksdb::ReadOptions ropts;
+  rocksdb::Iterator* it =
+      trx->GetIterator(ropts, cfHandles[(std::size_t)Family::Documents]);
+  rocksdb::Slice empty;
+  it->Seek(empty);
+  std::string line1;
+  std::string line2;
+  std::ofstream out(outfile.c_str(), std::ios::out);
+  while (it->Valid()) {
+    rocksdb::Slice key = it->key();
+    rocksdb::Slice value = it->value();
+    line1.clear();
+    line2.clear();
+    line1.reserve(2 * key.size() + 2 * value.size() + 5);
+    line2.reserve(2 * key.size() + 2 * value.size() + 5);
+    hexDump(key, line1, line2);
+    line1.append(" -> ");
+    line2.append("    ");
+    hexDump(value, line1, line2);
+    out << line1 << "\n" << line2 << "\n";
+    it->Next();
+  }
+  delete it;
+  delete trx;
+}
+
+void dump_collection(rocksdb::TransactionDB* db, uint64_t objid,
+                     std::string const& outfile) {}
+
+static const char USAGE[] =
+    R"(arangorocks.
+
+  Usage:
+    arangorocks [-h] [--version] [-d DBPATH] dump_all [-o OUTPATH]
+    arangorocks [-h] [--version] [-d DBPATH] dump_collection [-c OBJID] [-o OUTPATH]
+
+  Options:
+    -h --help                    Only show this screen.
+    --version                    Only show the version.
+    -c OBJID --objid=OBJID       ObjectId of collection to dump.
+    -d DBPATH --dbpath=DBPATH    Path to DB [default: /tmp/testdb].
+    -o OUTPATH --output=OUTPATH  Path to write collection dump [default: ./dump.json].
+
+)";
+
+int main(int argc, char** argv) {
+  std::map<std::string, docopt::value> args =
+      docopt::docopt(USAGE, {argv + 1, argv + argc},
+                     true,  // show help if requested
+                     std::string("arangorocks ") + std::string(Version));
+  std::string dbpath = args["--dbpath"].asString();
+  std::cout << "Using database path " << dbpath << "..." << std::endl;
+
+  if (args["dump_all"].asBool()) {
+    std::string outfile = args["--output"].asString();
+    std::cout << "Dumping all to file " << outfile << "." << std::endl;
+    rocksdb::TransactionDB* db = openDatabase(dbpath);
+    if (db == nullptr) {
+      return 1;
+    }
+    dump_all(db, outfile);
+    closeDatabase(db);
+  } else if (args["dump_collection"].asBool()) {
+    if (!args["--objid"].isString()) {
+      std::cerr << "Need --objid argument! Giving up." << std::endl;
+      return 2;
+    }
+    uint64_t objId = atol(args["--objid"].asString().c_str());
+    std::string outfile = args["--output"].asString();
+    std::cout << "Dumping collection with ObjectId " << objId << " to file "
+              << outfile << "." << std::endl;
+    rocksdb::TransactionDB* db = openDatabase(dbpath);
+    if (db == nullptr) {
+      return 1;
+    }
+    dump_collection(db, objId, outfile);
+    closeDatabase(db);
+
+  } else {
+    std::cout << "Nothing do do." << std::endl;
+  }
+
+  return 0;
 }
