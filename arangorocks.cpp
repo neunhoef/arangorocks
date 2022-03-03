@@ -1,5 +1,7 @@
 #include <docopt.h>
 #include <stdlib.h>
+#include <velocypack/AttributeTranslator.h>
+#include <velocypack/Dumper.h>
 #include <velocypack/Iterator.h>
 #include <velocypack/Slice.h>
 
@@ -18,6 +20,51 @@
 #include "rocksdb/utilities/transaction_db.h"
 
 constexpr char const* Version = "0.0.1";
+
+arangodb::velocypack::AttributeTranslator attrTranslator;
+
+void initAttributeTranslator() {
+  // these attribute names will be translated into short integer values
+  attrTranslator.add("_key", 1);
+  attrTranslator.add("_rev", 2);
+  attrTranslator.add("_id", 3);
+  attrTranslator.add("_from", 4);
+  attrTranslator.add("_to", 5);
+
+  attrTranslator.seal();
+}
+
+struct CustomTypeHandler final : public VPackCustomTypeHandler {
+  CustomTypeHandler() {}
+  ~CustomTypeHandler() = default;
+
+  void dump(VPackSlice const& value, VPackDumper* dumper,
+            VPackSlice const& base) override final {
+    dumper->appendString(toString(value, nullptr, base));
+  }
+
+  std::string toString(VPackSlice const& value, VPackOptions const* options,
+                       VPackSlice const& base) override final {
+    assert(value.isCustom() && value.head() == 0xf3);
+    uint8_t const* p = value.start();
+    uint64_t v = 0;
+    for (size_t i = 8; i > 0; --i) {
+      v = (v << 8) + p[i];
+    }
+    assert(base.isObject());
+    p = base.begin() + base.findDataOffset(base.head());
+    if (*p == 0x31) {  // This is `_key`
+      // the + 1 is required so that we can skip over the attribute name
+      // and point to the attribute value
+      VPackSlice keySlice(p + 1);
+      return std::to_string(v) + "/" + keySlice.copyString();
+    }
+    assert(base.hasKey("_key"));
+    return std::to_string(v) + "/" + base.get("_key").copyString();
+  }
+};
+
+CustomTypeHandler customTypeHandler;
 
 enum class Family : std::size_t {
   Definitions = 0,
@@ -688,16 +735,19 @@ void dump_collection(rocksdb::TransactionDB* db, uint64_t objid,
   it->Seek(start);
   std::string line1;
   std::string line2;
+  VPackOptions vopt;
+  vopt.attributeTranslator = &attrTranslator;
+  VPackOptions::Defaults.attributeTranslator = &attrTranslator;
+  vopt.unsupportedTypeBehavior = arangodb::velocypack::Options::
+      UnsupportedTypeBehavior::ConvertUnsupportedType;
+  vopt.customTypeHandler = &customTypeHandler;
   while (it->Valid()) {
     rocksdb::Slice value = it->value();
     VPackSlice slice((uint8_t*)value.data());
     if (slice.byteSize() != value.size()) {
       std::cerr << "Value size is not byteSize of slice!\n";
     }
-    VPackOptions opt;
-    opt.unsupportedTypeBehavior = arangodb::velocypack::Options::
-        UnsupportedTypeBehavior::ConvertUnsupportedType;
-    out << slice.toString() << "\n";
+    out << slice.toJson(&vopt) << "\n";
     it->Next();
   }
   delete it;
@@ -721,6 +771,7 @@ static const char USAGE[] =
 )";
 
 int main(int argc, char** argv) {
+  initAttributeTranslator();
   std::map<std::string, docopt::value> args =
       docopt::docopt(USAGE, {argv + 1, argv + argc},
                      true,  // show help if requested
