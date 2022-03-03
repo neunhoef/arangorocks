@@ -628,28 +628,33 @@ void dump_all(rocksdb::TransactionDB* db, std::string const& outfile) {
   rocksdb::TransactionOptions topts;
   rocksdb::Transaction* trx = db->BeginTransaction(opts, topts);
   rocksdb::ReadOptions ropts;
-  rocksdb::Iterator* it =
-      trx->GetIterator(ropts, cfHandles[(std::size_t)Family::Documents]);
-  rocksdb::Slice empty;
-  it->Seek(empty);
-  std::string line1;
-  std::string line2;
   std::ofstream out(outfile.c_str(), std::ios::out);
-  while (it->Valid()) {
-    rocksdb::Slice key = it->key();
-    rocksdb::Slice value = it->value();
-    line1.clear();
-    line2.clear();
-    line1.reserve(2 * key.size() + 2 * value.size() + 5);
-    line2.reserve(2 * key.size() + 2 * value.size() + 5);
-    hexDump(key, line1, line2);
-    line1.append(" -> ");
-    line2.append("    ");
-    hexDump(value, line1, line2);
-    out << line1 << "\n" << line2 << "\n";
-    it->Next();
+  for (size_t f = (size_t)Family::Definitions; f <= (size_t)Family::ZkdIndex;
+       ++f) {
+    std::cout << "Column family " << f << " with name " << FamilyNames[f]
+              << "...\n";
+    out << "Column family " << f << " with name " << FamilyNames[f] << ":\n";
+    rocksdb::Iterator* it = trx->GetIterator(ropts, cfHandles[f]);
+    rocksdb::Slice empty;
+    it->Seek(empty);
+    std::string line1;
+    std::string line2;
+    while (it->Valid()) {
+      rocksdb::Slice key = it->key();
+      rocksdb::Slice value = it->value();
+      line1.clear();
+      line2.clear();
+      line1.reserve(2 * key.size() + 2 * value.size() + 5);
+      line2.reserve(2 * key.size() + 2 * value.size() + 5);
+      hexDump(key, line1, line2);
+      line1.append(" -> ");
+      line2.append("    ");
+      hexDump(value, line1, line2);
+      out << line1 << "\n" << line2 << "\n";
+      it->Next();
+    }
+    delete it;
   }
-  delete it;
   delete trx;
 }
 
@@ -668,7 +673,7 @@ static const char USAGE[] =
     --version                    Only show the version.
     -c OBJID --objid=OBJID       ObjectId of collection to dump.
     -d DBPATH --dbpath=DBPATH    Path to DB [default: /tmp/testdb].
-    -o OUTPATH --output=OUTPATH  Path to write collection dump [default: ./dump.json].
+    -o OUTPATH --output=OUTPATH  Path to write collection dump [default: ./dump].
 
 )";
 
