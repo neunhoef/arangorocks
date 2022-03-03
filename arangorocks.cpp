@@ -676,6 +676,7 @@ void dump_all(rocksdb::TransactionDB* db, std::string const& outfile) {
   rocksdb::TransactionOptions topts;
   rocksdb::Transaction* trx = db->BeginTransaction(opts, topts);
   rocksdb::ReadOptions ropts;
+  ropts.fill_cache = false;
   std::ofstream out(outfile.c_str(), std::ios::out);
   bool doOutput = true;
   if (outfile == "/dev/null") {
@@ -729,6 +730,7 @@ void dump_collection(rocksdb::TransactionDB* db, uint64_t objid,
   rocksdb::TransactionOptions topts;
   rocksdb::Transaction* trx = db->BeginTransaction(opts, topts);
   rocksdb::ReadOptions ropts;
+  ropts.fill_cache = false;
   std::ofstream out(outfile.c_str(), std::ios::out);
   out << "Dumping collection with objid " << objid
       << " directly from documents family:\n";
