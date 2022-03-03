@@ -561,6 +561,7 @@ rocksdb::TransactionDB* openDatabase(std::string const& path) {
   cfHandles.clear();
   rocksdb::Options options;
   rocksdb::BlockBasedTableOptions tableOptions;
+  tableOptions.max_auto_readahead_size = 16 * 1024 * 1024;
   rocksdb::TransactionDBOptions transactionOptions;
   rocksdb::TransactionDB* db;
   std::vector<rocksdb::ColumnFamilyDescriptor> cfFamilies;
@@ -695,15 +696,15 @@ void dump_all(rocksdb::TransactionDB* db, std::string const& outfile) {
     while (it->Valid()) {
       rocksdb::Slice key = it->key();
       rocksdb::Slice value = it->value();
-      line1.clear();
-      line2.clear();
-      line1.reserve(2 * key.size() + 2 * value.size() + 5);
-      line2.reserve(2 * key.size() + 2 * value.size() + 5);
-      hexDump(key, line1, line2);
-      line1.append(" -> ");
-      line2.append("    ");
-      hexDump(value, line1, line2);
       if (doOutput) {
+        line1.clear();
+        line2.clear();
+        line1.reserve(2 * key.size() + 2 * value.size() + 5);
+        line2.reserve(2 * key.size() + 2 * value.size() + 5);
+        hexDump(key, line1, line2);
+        line1.append(" -> ");
+        line2.append("    ");
+        hexDump(value, line1, line2);
         out << line1 << "\n" << line2 << "\n";
       }
       it->Next();
