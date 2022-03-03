@@ -741,13 +741,19 @@ void dump_collection(rocksdb::TransactionDB* db, uint64_t objid,
   vopt.unsupportedTypeBehavior = arangodb::velocypack::Options::
       UnsupportedTypeBehavior::ConvertUnsupportedType;
   vopt.customTypeHandler = &customTypeHandler;
+  bool doOutput = true;
+  if (outfile == "/dev/null") {
+    doOutput = false;
+  }
   while (it->Valid()) {
     rocksdb::Slice value = it->value();
     VPackSlice slice((uint8_t*)value.data());
     if (slice.byteSize() != value.size()) {
       std::cerr << "Value size is not byteSize of slice!\n";
     }
-    out << slice.toJson(&vopt) << "\n";
+    if (doOutput) {
+      out << slice.toJson(&vopt) << "\n";
+    }
     it->Next();
   }
   delete it;
