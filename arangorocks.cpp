@@ -676,11 +676,17 @@ void dump_all(rocksdb::TransactionDB* db, std::string const& outfile) {
   rocksdb::Transaction* trx = db->BeginTransaction(opts, topts);
   rocksdb::ReadOptions ropts;
   std::ofstream out(outfile.c_str(), std::ios::out);
+  bool doOutput = true;
+  if (outfile == "/dev/null") {
+    doOutput = false;
+  }
   for (size_t f = (size_t)Family::Definitions; f <= (size_t)Family::ZkdIndex;
        ++f) {
     std::cout << "Column family " << f << " with name " << FamilyNames[f]
               << "...\n";
-    out << "Column family " << f << " with name " << FamilyNames[f] << ":\n";
+    if (doOutput) {
+      out << "Column family " << f << " with name " << FamilyNames[f] << ":\n";
+    }
     rocksdb::Iterator* it = trx->GetIterator(ropts, cfHandles[f]);
     rocksdb::Slice empty;
     it->Seek(empty);
@@ -697,7 +703,9 @@ void dump_all(rocksdb::TransactionDB* db, std::string const& outfile) {
       line1.append(" -> ");
       line2.append("    ");
       hexDump(value, line1, line2);
-      out << line1 << "\n" << line2 << "\n";
+      if (doOutput) {
+        out << line1 << "\n" << line2 << "\n";
+      }
       it->Next();
     }
     delete it;
