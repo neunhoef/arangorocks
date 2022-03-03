@@ -658,8 +658,51 @@ void dump_all(rocksdb::TransactionDB* db, std::string const& outfile) {
   delete trx;
 }
 
+void appendBigEndian(std::string& s, uint64_t v) {
+  uint64_t shift = 56;
+  s.reserve(s.size() + 8);
+  for (size_t i = 0; i < 8; ++i) {
+    s.push_back((uint8_t)((v >> shift) & 0xffull));
+    shift -= 8;
+  }
+}
+
 void dump_collection(rocksdb::TransactionDB* db, uint64_t objid,
-                     std::string const& outfile) {}
+                     std::string const& outfile) {
+  rocksdb::WriteOptions opts;
+  rocksdb::TransactionOptions topts;
+  rocksdb::Transaction* trx = db->BeginTransaction(opts, topts);
+  rocksdb::ReadOptions ropts;
+  std::ofstream out(outfile.c_str(), std::ios::out);
+  out << "Dumping collection with objid " << objid
+      << " directly from documents family:\n";
+  std::string startKey;
+  appendBigEndian(startKey, objid);
+  std::string endKey;
+  appendBigEndian(endKey, objid + 1);
+  rocksdb::Slice start(startKey);
+  rocksdb::Slice end(endKey);
+  ropts.iterate_upper_bound = &end;
+  rocksdb::Iterator* it =
+      trx->GetIterator(ropts, cfHandles[(size_t)Family::Documents]);
+  it->Seek(start);
+  std::string line1;
+  std::string line2;
+  while (it->Valid()) {
+    rocksdb::Slice value = it->value();
+    VPackSlice slice((uint8_t*)value.data());
+    if (slice.byteSize() != value.size()) {
+      std::cerr << "Value size is not byteSize of slice!\n";
+    }
+    VPackOptions opt;
+    opt.unsupportedTypeBehavior = arangodb::velocypack::Options::
+        UnsupportedTypeBehavior::ConvertUnsupportedType;
+    out << slice.toString() << "\n";
+    it->Next();
+  }
+  delete it;
+  delete trx;
+}
 
 static const char USAGE[] =
     R"(arangorocks.
