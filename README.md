@@ -1,3 +1,5 @@
 # ArangoRocks
 
-Access an ArangoDB/RocksDB database directory with a standalone C++ program.
+This has been moved to
+
+  https://github.com/arangodb/arangorocks
