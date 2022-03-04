@@ -561,7 +561,7 @@ rocksdb::TransactionDB* openDatabase(std::string const& path) {
   cfHandles.clear();
   rocksdb::Options options;
   rocksdb::BlockBasedTableOptions tableOptions;
-  tableOptions.max_auto_readahead_size = 16 * 1024 * 1024;
+  tableOptions.max_auto_readahead_size = 64 * 1024 * 1024;
   rocksdb::TransactionDBOptions transactionOptions;
   rocksdb::TransactionDB* db;
   std::vector<rocksdb::ColumnFamilyDescriptor> cfFamilies;
@@ -678,7 +678,7 @@ void dump_all(rocksdb::TransactionDB* db, std::string const& outfile) {
   rocksdb::ReadOptions ropts;
   ropts.verify_checksums = false;
   ropts.fill_cache = false;
-  ropts.readahead_size = 16 * 1024 * 1024;
+  ropts.readahead_size = 64 * 1024 * 1024;
   std::ofstream out(outfile.c_str(), std::ios::out);
   bool doOutput = true;
   if (outfile == "/dev/null") {
@@ -734,7 +734,7 @@ void dump_collection(rocksdb::TransactionDB* db, uint64_t objid,
   rocksdb::ReadOptions ropts;
   ropts.verify_checksums = false;
   ropts.fill_cache = false;
-  ropts.readahead_size = 16 * 1024 * 1024;
+  ropts.readahead_size = 64 * 1024 * 1024;
   std::ofstream out(outfile.c_str(), std::ios::out);
   out << "Dumping collection with objid " << objid
       << " directly from documents family:\n";
@@ -775,12 +775,43 @@ void dump_collection(rocksdb::TransactionDB* db, uint64_t objid,
   delete trx;
 }
 
+void dump_colllist(rocksdb::TransactionDB* db, std::string const& outfile) {
+  rocksdb::WriteOptions opts;
+  rocksdb::TransactionOptions topts;
+  rocksdb::Transaction* trx = db->BeginTransaction(opts, topts);
+  rocksdb::ReadOptions ropts;
+  ropts.verify_checksums = false;
+  ropts.fill_cache = false;
+  std::ofstream out(outfile.c_str(), std::ios::out);
+  out << "Dumping collection list directly from documents family:\n";
+  std::string startKey;
+  rocksdb::Slice start;
+  rocksdb::Iterator* it =
+      trx->GetIterator(ropts, cfHandles[(size_t)Family::Documents]);
+  it->Seek(start);
+  std::string line1;
+  while (it->Valid()) {
+    rocksdb::Slice key = it->key();
+    uint64_t id;
+    memcpy(&id, key.data(), sizeof(uint64_t));
+    id = be64toh(id);
+    out << id << " = 0x" << std::hex << id << std::dec << "\n";
+    id = htobe64(id + 1);
+    startKey.assign((char const*)&id, sizeof(uint64_t));
+    rocksdb::Slice sl(startKey);
+    it->Seek(sl);
+  }
+  delete it;
+  delete trx;
+}
+
 static const char USAGE[] =
     R"(arangorocks.
 
   Usage:
     arangorocks [-h] [--version] [-d DBPATH] dump_all [-o OUTPATH]
     arangorocks [-h] [--version] [-d DBPATH] dump_collection [-c OBJID] [-o OUTPATH]
+    arangorocks [-h] [--version] [-d DBPATH] list_collections [-o OUTPATH]
 
   Options:
     -h --help                    Only show this screen.
@@ -799,16 +830,16 @@ int main(int argc, char** argv) {
                      std::string("arangorocks ") + std::string(Version));
   std::string dbpath = args["--dbpath"].asString();
   std::cout << "Using database path " << dbpath << "..." << std::endl;
+  std::string outfile = args["--output"].asString();
+
+  rocksdb::TransactionDB* db = openDatabase(dbpath);
+  if (db == nullptr) {
+    return 1;
+  }
 
   if (args["dump_all"].asBool()) {
-    std::string outfile = args["--output"].asString();
     std::cout << "Dumping all to file " << outfile << "." << std::endl;
-    rocksdb::TransactionDB* db = openDatabase(dbpath);
-    if (db == nullptr) {
-      return 1;
-    }
     dump_all(db, outfile);
-    closeDatabase(db);
   } else if (args["dump_collection"].asBool()) {
     if (!args["--objid"].isString()) {
       std::cerr << "Need --objid argument! Giving up." << std::endl;
@@ -818,16 +849,16 @@ int main(int argc, char** argv) {
     std::string outfile = args["--output"].asString();
     std::cout << "Dumping collection with ObjectId " << objId << " to file "
               << outfile << "." << std::endl;
-    rocksdb::TransactionDB* db = openDatabase(dbpath);
-    if (db == nullptr) {
-      return 1;
-    }
     dump_collection(db, objId, outfile);
-    closeDatabase(db);
-
+  } else if (args["list_collections"].asBool()) {
+    std::cout << "Dumping list of collections to file " << outfile << "."
+              << std::endl;
+    dump_colllist(db, outfile);
   } else {
     std::cout << "Nothing do do." << std::endl;
   }
+
+  closeDatabase(db);
 
   return 0;
 }
