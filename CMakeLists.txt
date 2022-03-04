@@ -29,7 +29,8 @@ add_subdirectory(velocypack)
 add_subdirectory(docopt.cpp)
 
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3")
+#set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -fomit-frame-pointer -flto -fno-inline")
 
 link_directories("${CMAKE_SOURCE_DIR}/liburing/src")
 
