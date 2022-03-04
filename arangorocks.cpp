@@ -676,6 +676,7 @@ void dump_all(rocksdb::TransactionDB* db, std::string const& outfile) {
   rocksdb::TransactionOptions topts;
   rocksdb::Transaction* trx = db->BeginTransaction(opts, topts);
   rocksdb::ReadOptions ropts;
+  ropts.verify_checksums = false;
   ropts.fill_cache = false;
   ropts.readahead_size = 16 * 1024 * 1024;
   std::ofstream out(outfile.c_str(), std::ios::out);
@@ -731,6 +732,7 @@ void dump_collection(rocksdb::TransactionDB* db, uint64_t objid,
   rocksdb::TransactionOptions topts;
   rocksdb::Transaction* trx = db->BeginTransaction(opts, topts);
   rocksdb::ReadOptions ropts;
+  ropts.verify_checksums = false;
   ropts.fill_cache = false;
   ropts.readahead_size = 16 * 1024 * 1024;
   std::ofstream out(outfile.c_str(), std::ios::out);
