@@ -17,8 +17,10 @@ set(WITH_TESTS OFF CACHE BOOL "disable tests")
 set(WITH_ALL_TESTS OFF CACHE BOOL "disable all tests")
 set(WITH_EXAMPLES OFF CACHE BOOL "disable examples")
 set(WITH_SNAPPY ON CACHE BOOL "enable snappy")
-set(WITH_LIBURING OFF CACHE BOOL "disable io_uring")
+set(WITH_LIBURING ON CACHE BOOL "disable io_uring")
 set(WITH_FOLLY_DISTRIBUTED_MUTEX OFF CACHE BOOL "disable folly")
+set(uring_LIBRARIES "${CMAKE_SOURCE_DIR}/liburing/src/liburing.so.2.2" CACHE STRING "uring lib")
+set(uring_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/liburing/src/include" CACHE STRING "uring include")
 
 find_package(Threads REQUIRED)
 
@@ -26,8 +28,10 @@ add_subdirectory(rocksdb)
 add_subdirectory(velocypack)
 add_subdirectory(docopt.cpp)
 
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb -L/home/neunhoef/cpp/rocksdb")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -ggdb")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3")
+
+link_directories("${CMAKE_SOURCE_DIR}/liburing/src")
 
 add_executable(arangorocks
     arangorocks.cpp)
@@ -37,6 +41,7 @@ target_include_directories(arangorocks
     rocksdb/include
     velocypack/include
     docopt.cpp
+    ${CMAKE_SOURCE_DIR}/liburing/src
 )
 
 target_link_libraries(arangorocks
@@ -44,5 +49,6 @@ target_link_libraries(arangorocks
     rocksdb
     dl
     docopt
+    uring
 )
 

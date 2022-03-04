@@ -8,3 +8,10 @@ fi
 if test ! -d docopt.cpp ; then
     git clone https://github.com/docopt/docopt.cpp
 fi
+if test ! -d liburing ; then
+    git clone https://github.com/axboe/liburing
+    cd liburing
+    ./configure
+    make -j 16
+    cd ..
+fi
