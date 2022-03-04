@@ -19,7 +19,7 @@ set(WITH_EXAMPLES OFF CACHE BOOL "disable examples")
 set(WITH_SNAPPY ON CACHE BOOL "enable snappy")
 set(WITH_LIBURING ON CACHE BOOL "disable io_uring")
 set(WITH_FOLLY_DISTRIBUTED_MUTEX OFF CACHE BOOL "disable folly")
-set(uring_LIBRARIES "${CMAKE_SOURCE_DIR}/liburing/src/liburing.so.2.2" CACHE STRING "uring lib")
+set(uring_LIBRARIES "${CMAKE_SOURCE_DIR}/liburing/src/liburing.a" CACHE STRING "uring lib")
 set(uring_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/liburing/src/include" CACHE STRING "uring include")
 
 find_package(Threads REQUIRED)
