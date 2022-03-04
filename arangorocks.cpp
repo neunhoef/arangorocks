@@ -760,6 +760,7 @@ void dump_collection(rocksdb::TransactionDB* db, uint64_t objid,
   if (outfile == "/dev/null") {
     doOutput = false;
   }
+  uint64_t count = 0;
   while (it->Valid()) {
     rocksdb::Slice value = it->value();
     VPackSlice slice((uint8_t*)value.data());
@@ -769,8 +770,10 @@ void dump_collection(rocksdb::TransactionDB* db, uint64_t objid,
     if (doOutput) {
       out << slice.toJson(&vopt) << "\n";
     }
+    ++count;
     it->Next();
   }
+  std::cout << "Have dumped " << count << " documents." << std::endl;
   delete it;
   delete trx;
 }
